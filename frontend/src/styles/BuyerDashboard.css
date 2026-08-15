@@ -1756,3 +1756,51 @@ body {
   height: auto;
   min-height: 0;
 }
+
+/* ========================================
+   MOBILE SCROLL FIX
+======================================== */
+
+html,
+body {
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.buyer-dashboard-page {
+  min-height: 100dvh;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+.buyer-dashboard-content {
+  min-height: 0;
+}
+
+@media (max-width: 680px) {
+  .buyer-dashboard-page {
+    position: relative;
+    overflow: visible;
+  }
+
+  .buyer-dashboard-content {
+    overflow: visible;
+  }
+
+  .buyer-bg-orb,
+  .buyer-bg-grid {
+    position: fixed;
+    pointer-events: none;
+  }
+
+  .buyer-dashboard-header {
+    position: sticky;
+    top: 0;
+  }
+}
