@@ -4,7 +4,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import "../styles/StorePage.css";
 
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+  import.meta.env.VITE_API_URL ||
+  "https://canteenly.fastapicloud.dev";
 
 function StorePage() {
   const navigate = useNavigate();

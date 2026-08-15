@@ -19,7 +19,7 @@ import "../styles/SellerSetting.css";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  "http://127.0.0.1:8000";
+  "https://canteenly.fastapicloud.dev";
 
 const SELLER_TOKEN_KEY =
   "canteenly_seller_token";

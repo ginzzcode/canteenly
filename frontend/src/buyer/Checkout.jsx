@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import "../styles/Checkout.css";
 
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+  import.meta.env.VITE_API_URL ||
+  "https://canteenly.fastapicloud.dev";
 
 function Checkout() {
   const navigate = useNavigate();
