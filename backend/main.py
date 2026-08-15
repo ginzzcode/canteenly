@@ -1913,3 +1913,22 @@ def debug_database():
     return {
         "database": DATABASE_NAME
     }
+
+@app.get("/debug/database-host")
+def debug_database_host():
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(MONGODB_URI)
+
+        return {
+            "database": DATABASE_NAME,
+            "host": parsed.hostname,
+        }
+
+    except Exception as error:
+        return {
+            "database": DATABASE_NAME,
+            "host": None,
+            "error": str(error),
+        }
