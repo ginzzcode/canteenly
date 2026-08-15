@@ -1,4 +1,3 @@
-
 import os
 import random
 from datetime import datetime, timedelta, timezone
@@ -68,12 +67,16 @@ def verify_password(
     plain_password: str,
     hashed_password: str,
 ) -> bool:
+    if not plain_password or not hashed_password:
+        return False
+
     try:
         return pwd_context.verify(
             plain_password,
             hashed_password,
         )
-    except Exception:
+    except Exception as error:
+        print("Password verification error:", error)
         return False
 
 
@@ -448,11 +451,6 @@ ALLOWED_ORDER_STATUSES = {
 # =========================================================
 
 def seller_order_filter(seller_id):
-    """
-    Mendukung data lama yang menyimpan seller_id
-    sebagai ObjectId maupun string.
-    """
-
     seller_id_string = str(seller_id)
 
     return {
@@ -491,39 +489,21 @@ def serialize_seller(seller):
         True,
     )
 
-    profile_image = seller.get(
-        "profile_image",
-    )
-
-    banner_image = seller.get(
-        "banner_image",
-    )
+    profile_image = seller.get("profile_image")
+    banner_image = seller.get("banner_image")
 
     return {
         "id": str(seller["_id"]),
-
-        "name": seller.get(
-            "name",
-            "",
-        ),
-
+        "name": seller.get("name", ""),
         "store_name": store_name,
         "storeName": store_name,
-
-        "email": seller.get(
-            "email",
-            "",
-        ),
-
+        "email": seller.get("email", ""),
         "store_description": store_description,
         "storeDescription": store_description,
-
         "store_open": store_open,
         "storeOpen": store_open,
-
         "profile_image": profile_image,
         "profileImage": profile_image,
-
         "banner_image": banner_image,
         "bannerImage": banner_image,
     }
@@ -546,19 +526,16 @@ def build_notification(order):
             "title": "Pesanan sedang diproses",
             "message": f"Pesanan {code} sedang diproses.",
         },
-
         "Siap diambil": {
             "type": "ready",
             "title": "Pesanan siap diambil",
             "message": f"Pesanan {code} sudah siap diambil.",
         },
-
         "Selesai": {
             "type": "completed",
             "title": "Pesanan selesai",
             "message": f"Pesanan {code} sudah selesai.",
         },
-
         "Dibatalkan": {
             "type": "cancelled",
             "title": "Pesanan dibatalkan",
@@ -566,9 +543,7 @@ def build_notification(order):
         },
     }
 
-    notification = notification_map.get(
-        status_value
-    )
+    notification = notification_map.get(status_value)
 
     if not notification:
         return None
@@ -579,9 +554,7 @@ def build_notification(order):
 
     return {
         **notification,
-
         "status": status_value,
-
         "changed_at": (
             last_status_change.isoformat()
             if last_status_change
@@ -591,17 +564,9 @@ def build_notification(order):
 
 
 def serialize_menu(menu):
-    seller_id = menu.get(
-        "seller_id"
-    )
-
-    created_at = menu.get(
-        "created_at"
-    )
-
-    updated_at = menu.get(
-        "updated_at"
-    )
+    seller_id = menu.get("seller_id")
+    created_at = menu.get("created_at")
+    updated_at = menu.get("updated_at")
 
     return {
         "id": str(menu["_id"]),
@@ -637,9 +602,7 @@ def serialize_menu(menu):
             "🍽️",
         ),
 
-        "image": menu.get(
-            "image"
-        ),
+        "image": menu.get("image"),
 
         "is_available": menu.get(
             "is_available",
@@ -661,14 +624,8 @@ def serialize_menu(menu):
 
 
 def serialize_order(order):
-    created_at = order.get(
-        "created_at"
-    )
-
-    updated_at = order.get(
-        "updated_at"
-    )
-
+    created_at = order.get("created_at")
+    updated_at = order.get("updated_at")
     last_status_change = order.get(
         "last_status_change"
     )
@@ -678,9 +635,7 @@ def serialize_order(order):
         "Menunggu",
     )
 
-    seller_id = order.get(
-        "seller_id"
-    )
+    seller_id = order.get("seller_id")
 
     time_value = "-"
 
@@ -755,16 +710,12 @@ def serialize_order(order):
             else None
         ),
 
-        "notification": build_notification(
-            order
-        ),
+        "notification": build_notification(order),
     }
 
 
 def generate_order_code():
-    characters = (
-        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    )
+    characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
     for _ in range(100):
         code = "SC-" + "".join(
@@ -785,12 +736,8 @@ def generate_order_code():
     )
 
 
-def get_seller_by_id(
-    seller_id: str,
-):
-    if not ObjectId.is_valid(
-        seller_id
-    ):
+def get_seller_by_id(seller_id: str):
+    if not ObjectId.is_valid(seller_id):
         raise HTTPException(
             status_code=400,
             detail="ID seller tidak valid",
@@ -847,10 +794,9 @@ def health():
 # =========================================================
 
 @app.post("/api/admin/login")
-def login_admin(
-    data: AdminLogin,
-):
+def login_admin(data: AdminLogin):
     email = data.email.strip().lower()
+    password = data.password
 
     admin = admins_collection.find_one(
         {
@@ -864,12 +810,17 @@ def login_admin(
             detail="Email atau password salah",
         )
 
+    stored_hash = admin.get("password")
+
+    if not stored_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email atau password salah",
+        )
+
     if not verify_password(
-        data.password,
-        admin.get(
-            "password",
-            "",
-        ),
+        password,
+        stored_hash,
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -882,14 +833,9 @@ def login_admin(
 
     return {
         "message": "Login admin berhasil",
-
         "access_token": token,
-
         "token_type": "bearer",
-
-        "admin": serialize_admin(
-            admin
-        ),
+        "admin": serialize_admin(admin),
     }
 
 
@@ -899,14 +845,10 @@ def login_admin(
 
 @app.get("/api/admin/me")
 def get_my_admin(
-    admin=Depends(
-        get_current_admin
-    ),
+    admin=Depends(get_current_admin),
 ):
     return {
-        "admin": serialize_admin(
-            admin
-        )
+        "admin": serialize_admin(admin)
     }
 
 
@@ -964,56 +906,40 @@ def get_public_menu():
     stores = {}
 
     for menu in menus:
-        seller_id = menu.get(
-            "seller_id"
-        )
-
-        seller = seller_map.get(
-            seller_id
-        )
+        seller_id = menu.get("seller_id")
+        seller = seller_map.get(seller_id)
 
         if not seller:
             continue
 
-        seller_id_string = str(
-            seller_id
-        )
+        seller_id_string = str(seller_id)
 
         if seller_id_string not in stores:
             stores[seller_id_string] = {
                 "seller_id": seller_id_string,
-
                 "store_name": seller.get(
                     "store_name",
                     "Kantin",
                 ),
-
                 "seller_name": seller.get(
                     "name",
                     "",
                 ),
-
                 "profile_image": seller.get(
                     "profile_image"
                 ),
-
                 "banner_image": seller.get(
                     "banner_image"
                 ),
-
                 "menus": [],
             }
 
-        stores[
-            seller_id_string
-        ]["menus"].append(
+        stores[seller_id_string]["menus"].append(
             serialize_menu(menu)
         )
 
     return {
-        "stores": list(
-            stores.values()
-        )
+        "stores": list(stores.values())
     }
 
 
@@ -1053,28 +979,21 @@ def get_public_stores():
 
         stores.append(
             {
-                "id": str(
-                    seller["_id"]
-                ),
-
+                "id": str(seller["_id"]),
                 "name": seller.get(
                     "name",
                     "",
                 ),
-
                 "store_name": seller.get(
                     "store_name",
                     "Kantin",
                 ),
-
                 "profile_image": seller.get(
                     "profile_image"
                 ),
-
                 "banner_image": seller.get(
                     "banner_image"
                 ),
-
                 "menus": serialized_menus,
             }
         )
@@ -1089,12 +1008,8 @@ def get_public_stores():
 # =========================================================
 
 @app.get("/api/public/stores/{seller_id}")
-def get_public_store(
-    seller_id: str,
-):
-    seller = get_seller_by_id(
-        seller_id
-    )
+def get_public_store(seller_id: str):
+    seller = get_seller_by_id(seller_id)
 
     menus = menus_collection.find(
         {
@@ -1113,28 +1028,21 @@ def get_public_store(
 
     return {
         "store": {
-            "id": str(
-                seller["_id"]
-            ),
-
+            "id": str(seller["_id"]),
             "name": seller.get(
                 "name",
                 "",
             ),
-
             "store_name": seller.get(
                 "store_name",
                 "Kantin",
             ),
-
             "profile_image": seller.get(
                 "profile_image"
             ),
-
             "banner_image": seller.get(
                 "banner_image"
             ),
-
             "menus": serialized_menus,
         }
     }
@@ -1145,17 +1053,10 @@ def get_public_store(
 # =========================================================
 
 @app.post("/api/public/orders")
-def create_public_order(
-    data: OrderCreate,
-):
-    seller = get_seller_by_id(
-        data.seller_id
-    )
+def create_public_order(data: OrderCreate):
+    seller = get_seller_by_id(data.seller_id)
 
-    if seller.get(
-        "store_open",
-        True,
-    ) is False:
+    if seller.get("store_open", True) is False:
         raise HTTPException(
             status_code=400,
             detail="Toko sedang tutup.",
@@ -1196,36 +1097,21 @@ def create_public_order(
             )
 
         quantity = requested_item.quantity
-
-        price = menu.get(
-            "price",
-            0,
-        )
-
+        price = menu.get("price", 0)
         subtotal = price * quantity
         total += subtotal
 
         order_items.append(
             {
-                "menu_id": str(
-                    menu["_id"]
-                ),
-
+                "menu_id": str(menu["_id"]),
                 "name": menu.get(
                     "name",
                     "",
                 ),
-
                 "price": price,
-
                 "quantity": quantity,
-
                 "subtotal": subtotal,
-
-                "image": menu.get(
-                    "image"
-                ),
-
+                "image": menu.get("image"),
                 "emoji": menu.get(
                     "emoji",
                     "🍽️",
@@ -1233,53 +1119,32 @@ def create_public_order(
             }
         )
 
-    now = datetime.now(
-        timezone.utc
-    )
+    now = datetime.now(timezone.utc)
 
     order = {
         "code": generate_order_code(),
-
         "seller_id": seller["_id"],
-
         "seller_name": seller.get(
             "store_name",
             "Kantin",
         ),
-
-        "customer_name": (
-            data.customer_name.strip()
-        ),
-
-        "customer_class": (
-            data.customer_class.strip()
-        ),
-
+        "customer_name": data.customer_name.strip(),
+        "customer_class": data.customer_class.strip(),
         "items": order_items,
-
         "total": total,
-
         "status": "Menunggu",
-
         "created_at": now,
-
         "updated_at": now,
-
         "last_status_change": None,
     }
 
-    result = orders_collection.insert_one(
-        order
-    )
+    result = orders_collection.insert_one(order)
 
     order["_id"] = result.inserted_id
 
     return {
         "message": "Pesanan berhasil dibuat",
-
-        "order": serialize_order(
-            order
-        ),
+        "order": serialize_order(order),
     }
 
 
@@ -1288,18 +1153,13 @@ def create_public_order(
 # =========================================================
 
 @app.get("/api/public/orders/{order_identifier}")
-def get_public_order(
-    order_identifier: str,
-):
+def get_public_order(order_identifier: str):
     identifier = order_identifier.strip()
 
     if not identifier:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "ID atau kode pesanan "
-                "tidak boleh kosong"
-            ),
+            detail="ID atau kode pesanan tidak boleh kosong",
         )
 
     order = None
@@ -1325,9 +1185,7 @@ def get_public_order(
         )
 
     return {
-        "order": serialize_order(
-            order
-        )
+        "order": serialize_order(order)
     }
 
 
@@ -1336,9 +1194,7 @@ def get_public_order(
 # =========================================================
 
 @app.post("/api/sellers/register")
-def register_seller(
-    data: SellerRegister,
-):
+def register_seller(data: SellerRegister):
     name = data.name.strip()
     store_name = data.store_name.strip()
     email = data.email.strip().lower()
@@ -1367,38 +1223,23 @@ def register_seller(
             detail="Email seller sudah terdaftar",
         )
 
-    now = datetime.now(
-        timezone.utc
-    )
+    now = datetime.now(timezone.utc)
 
     seller = {
         "name": name,
-
         "store_name": store_name,
-
         "email": email,
-
-        "password": hash_password(
-            data.password
-        ),
-
+        "password": hash_password(data.password),
         "profile_image": None,
-
         "banner_image": None,
-
         "store_description": "",
-
         "store_open": True,
-
         "created_at": now,
-
         "updated_at": now,
     }
 
     try:
-        result = sellers_collection.insert_one(
-            seller
-        )
+        result = sellers_collection.insert_one(seller)
 
     except DuplicateKeyError:
         raise HTTPException(
@@ -1410,10 +1251,7 @@ def register_seller(
 
     return {
         "message": "Akun seller berhasil dibuat",
-
-        "seller": serialize_seller(
-            seller
-        ),
+        "seller": serialize_seller(seller),
     }
 
 
@@ -1422,9 +1260,7 @@ def register_seller(
 # =========================================================
 
 @app.post("/api/sellers/login")
-def login_seller(
-    data: SellerLogin,
-):
+def login_seller(data: SellerLogin):
     email = data.email.strip().lower()
 
     seller = sellers_collection.find_one(
@@ -1441,10 +1277,7 @@ def login_seller(
 
     if not verify_password(
         data.password,
-        seller.get(
-            "password",
-            "",
-        ),
+        seller.get("password", ""),
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1457,14 +1290,9 @@ def login_seller(
 
     return {
         "message": "Login berhasil",
-
         "access_token": token,
-
         "token_type": "bearer",
-
-        "seller": serialize_seller(
-            seller
-        ),
+        "seller": serialize_seller(seller),
     }
 
 
@@ -1474,14 +1302,10 @@ def login_seller(
 
 @app.get("/api/sellers/me")
 def get_my_seller(
-    seller=Depends(
-        get_current_seller
-    ),
+    seller=Depends(get_current_seller),
 ):
     return {
-        "seller": serialize_seller(
-            seller
-        )
+        "seller": serialize_seller(seller)
     }
 
 
@@ -1492,9 +1316,7 @@ def get_my_seller(
 @app.put("/api/sellers/profile")
 def update_seller_profile(
     data: SellerProfileUpdate,
-    seller=Depends(
-        get_current_seller
-    ),
+    seller=Depends(get_current_seller),
 ):
     trimmed_name = data.name.strip()
     trimmed_store_name = data.store_name.strip()
@@ -1531,38 +1353,26 @@ def update_seller_profile(
     if existing_seller:
         raise HTTPException(
             status_code=409,
-            detail=(
-                "Email seller sudah digunakan "
-                "oleh akun lain."
-            ),
+            detail="Email seller sudah digunakan oleh akun lain.",
         )
 
     update_data = {
         "name": trimmed_name,
-
         "store_name": trimmed_store_name,
-
         "email": trimmed_email,
-
         "store_description": trimmed_description,
-
         "store_open": data.store_open,
-
         "profile_image": (
             data.profile_image.strip()
             if data.profile_image
             else None
         ),
-
         "banner_image": (
             data.banner_image.strip()
             if data.banner_image
             else None
         ),
-
-        "updated_at": datetime.now(
-            timezone.utc
-        ),
+        "updated_at": datetime.now(timezone.utc),
     }
 
     try:
@@ -1583,10 +1393,7 @@ def update_seller_profile(
 
         raise HTTPException(
             status_code=500,
-            detail=(
-                "Gagal menyimpan "
-                "pengaturan profil."
-            ),
+            detail="Gagal menyimpan pengaturan profil.",
         )
 
     if result.matched_count == 0:
@@ -1602,13 +1409,8 @@ def update_seller_profile(
     )
 
     return {
-        "message": (
-            "Pengaturan profil berhasil disimpan."
-        ),
-
-        "seller": serialize_seller(
-            updated_seller
-        ),
+        "message": "Pengaturan profil berhasil disimpan.",
+        "seller": serialize_seller(updated_seller),
     }
 
 
@@ -1619,16 +1421,11 @@ def update_seller_profile(
 @app.put("/api/sellers/password")
 def change_seller_password(
     data: SellerPasswordChange,
-    seller=Depends(
-        get_current_seller
-    ),
+    seller=Depends(get_current_seller),
 ):
     if not verify_password(
         data.current_password,
-        seller.get(
-            "password",
-            "",
-        ),
+        seller.get("password", ""),
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1638,10 +1435,7 @@ def change_seller_password(
     if data.current_password == data.new_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Password baru harus "
-                "berbeda dari password lama."
-            ),
+            detail="Password baru harus berbeda dari password lama.",
         )
 
     new_hashed_password = hash_password(
@@ -1655,7 +1449,6 @@ def change_seller_password(
         {
             "$set": {
                 "password": new_hashed_password,
-
                 "updated_at": datetime.now(
                     timezone.utc
                 ),
@@ -1670,9 +1463,7 @@ def change_seller_password(
         )
 
     return {
-        "message": (
-            "Password berhasil diperbarui."
-        ),
+        "message": "Password berhasil diperbarui.",
     }
 
 
@@ -1682,15 +1473,11 @@ def change_seller_password(
 
 @app.get("/api/sellers/dashboard")
 def seller_dashboard(
-    seller=Depends(
-        get_current_seller
-    ),
+    seller=Depends(get_current_seller),
 ):
     seller_id = seller["_id"]
 
-    now = datetime.now(
-        timezone.utc
-    )
+    now = datetime.now(timezone.utc)
 
     start_of_day = datetime(
         now.year,
@@ -1702,10 +1489,7 @@ def seller_dashboard(
     today_orders_list = list(
         orders_collection.find(
             {
-                **seller_order_filter(
-                    seller_id
-                ),
-
+                **seller_order_filter(seller_id),
                 "created_at": {
                     "$gte": start_of_day,
                 },
@@ -1713,9 +1497,7 @@ def seller_dashboard(
         )
     )
 
-    total_orders = len(
-        today_orders_list
-    )
+    total_orders = len(today_orders_list)
 
     pending_orders = sum(
         1
@@ -1730,10 +1512,7 @@ def seller_dashboard(
     )
 
     today_income = sum(
-        order.get(
-            "total",
-            0,
-        )
+        order.get("total", 0)
         for order in today_orders_list
         if order.get("status") == "Selesai"
     )
@@ -1750,17 +1529,12 @@ def seller_dashboard(
     )[:10]
 
     return {
-        "seller": serialize_seller(
-            seller
-        ),
+        "seller": serialize_seller(seller),
 
         "stats": {
             "today_income": today_income,
-
             "today_orders": total_orders,
-
             "pending_orders": pending_orders,
-
             "ready_orders": ready_orders,
         },
 
@@ -1777,9 +1551,7 @@ def seller_dashboard(
 
 @app.get("/api/sellers/menu")
 def get_seller_menu(
-    seller=Depends(
-        get_current_seller
-    ),
+    seller=Depends(get_current_seller),
 ):
     menus = menus_collection.find(
         {
@@ -1801,9 +1573,7 @@ def get_seller_menu(
 @app.post("/api/sellers/menu")
 def create_seller_menu(
     data: MenuCreate,
-    seller=Depends(
-        get_current_seller
-    ),
+    seller=Depends(get_current_seller),
 ):
     name = data.name.strip()
     category = data.category.strip()
@@ -1821,44 +1591,28 @@ def create_seller_menu(
             detail="Kategori menu wajib diisi.",
         )
 
-    now = datetime.now(
-        timezone.utc
-    )
+    now = datetime.now(timezone.utc)
 
     menu = {
         "seller_id": seller["_id"],
-
         "name": name,
-
         "category": category,
-
         "price": data.price,
-
         "description": description,
-
         "emoji": data.emoji,
-
         "image": data.image,
-
         "is_available": data.is_available,
-
         "created_at": now,
-
         "updated_at": now,
     }
 
-    result = menus_collection.insert_one(
-        menu
-    )
+    result = menus_collection.insert_one(menu)
 
     menu["_id"] = result.inserted_id
 
     return {
         "message": "Menu berhasil ditambahkan",
-
-        "menu": serialize_menu(
-            menu
-        ),
+        "menu": serialize_menu(menu),
     }
 
 
@@ -1866,21 +1620,15 @@ def create_seller_menu(
 def update_seller_menu(
     menu_id: str,
     data: MenuUpdate,
-    seller=Depends(
-        get_current_seller
-    ),
+    seller=Depends(get_current_seller),
 ):
-    if not ObjectId.is_valid(
-        menu_id
-    ):
+    if not ObjectId.is_valid(menu_id):
         raise HTTPException(
             status_code=400,
             detail="ID menu tidak valid",
         )
 
-    object_id = ObjectId(
-        menu_id
-    )
+    object_id = ObjectId(menu_id)
 
     existing_menu = menus_collection.find_one(
         {
@@ -1954,23 +1702,16 @@ def update_seller_menu(
 
     return {
         "message": "Menu berhasil diperbarui",
-
-        "menu": serialize_menu(
-            updated_menu
-        ),
+        "menu": serialize_menu(updated_menu),
     }
 
 
 @app.delete("/api/sellers/menu/{menu_id}")
 def delete_seller_menu(
     menu_id: str,
-    seller=Depends(
-        get_current_seller
-    ),
+    seller=Depends(get_current_seller),
 ):
-    if not ObjectId.is_valid(
-        menu_id
-    ):
+    if not ObjectId.is_valid(menu_id):
         raise HTTPException(
             status_code=400,
             detail="ID menu tidak valid",
@@ -2000,14 +1741,10 @@ def delete_seller_menu(
 
 @app.get("/api/sellers/orders")
 def get_seller_orders(
-    seller=Depends(
-        get_current_seller
-    ),
+    seller=Depends(get_current_seller),
 ):
     orders = orders_collection.find(
-        seller_order_filter(
-            seller["_id"]
-        )
+        seller_order_filter(seller["_id"])
     ).sort(
         "created_at",
         -1,
@@ -2029,9 +1766,7 @@ def get_seller_orders(
 def update_order_status(
     order_id: str,
     data: OrderStatusUpdate,
-    seller=Depends(
-        get_current_seller
-    ),
+    seller=Depends(get_current_seller),
 ):
     new_status = data.status.strip()
 
@@ -2046,23 +1781,17 @@ def update_order_status(
             ),
         )
 
-    if not ObjectId.is_valid(
-        order_id
-    ):
+    if not ObjectId.is_valid(order_id):
         raise HTTPException(
             status_code=400,
             detail="ID order tidak valid",
         )
 
-    order_object_id = ObjectId(
-        order_id
-    )
+    order_object_id = ObjectId(order_id)
 
     order_query = {
         "_id": order_object_id,
-        **seller_order_filter(
-            seller["_id"]
-        ),
+        **seller_order_filter(seller["_id"]),
     }
 
     order = orders_collection.find_one(
@@ -2080,9 +1809,7 @@ def update_order_status(
         "Menunggu",
     )
 
-    now = datetime.now(
-        timezone.utc
-    )
+    now = datetime.now(timezone.utc)
 
     update_data = {
         "status": new_status,
@@ -2108,22 +1835,13 @@ def update_order_status(
     if not updated_order:
         raise HTTPException(
             status_code=404,
-            detail=(
-                "Pesanan tidak ditemukan "
-                "setelah diperbarui"
-            ),
+            detail="Pesanan tidak ditemukan setelah diperbarui",
         )
 
     return {
-        "message": (
-            "Status pesanan berhasil diperbarui"
-        ),
-
+        "message": "Status pesanan berhasil diperbarui",
         "previous_status": old_status,
-
-        "order": serialize_order(
-            updated_order
-        ),
+        "order": serialize_order(updated_order),
     }
 
 
@@ -2156,9 +1874,7 @@ def get_public_order_by_code(
         )
 
     return {
-        "order": serialize_order(
-            order
-        ),
+        "order": serialize_order(order),
     }
 
 
@@ -2170,9 +1886,7 @@ def get_public_order_by_code(
 def get_public_order_by_id(
     order_id: str,
 ):
-    if not ObjectId.is_valid(
-        order_id
-    ):
+    if not ObjectId.is_valid(order_id):
         raise HTTPException(
             status_code=400,
             detail="ID order tidak valid",
@@ -2191,7 +1905,5 @@ def get_public_order_by_id(
         )
 
     return {
-        "order": serialize_order(
-            order
-        ),
+        "order": serialize_order(order),
     }

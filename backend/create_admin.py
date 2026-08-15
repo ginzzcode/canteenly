@@ -64,15 +64,30 @@ existing_admin = admins_collection.find_one(
 )
 
 if existing_admin:
+    admins_collection.update_one(
+        {
+            "_id": existing_admin["_id"],
+        },
+        {
+            "$set": {
+                "name": name,
+                "email": email,
+                "password": pwd_context.hash(password),
+            }
+        },
+    )
+
     print("Admin sudah ada.")
+    print("Password admin berhasil diperbarui.")
+    print("Email:", email)
+    print("Password:", password)
+
 else:
     admins_collection.insert_one(
         {
             "name": name,
             "email": email,
-            "password": pwd_context.hash(
-                password
-            ),
+            "password": pwd_context.hash(password),
         }
     )
 
