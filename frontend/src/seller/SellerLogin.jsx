@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -30,15 +31,95 @@ function SellerLogin() {
 
     setError("");
 
-    if (!email.trim() || !password.trim()) {
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedEmail || !password) {
       setError("Email dan password wajib diisi.");
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      const response = await fetch(
+    /*
+     * =====================================================
+     * 1. COBA LOGIN SEBAGAI SELLER
+     * =====================================================
+     */
+
+    try {
+      const sellerResponse = await fetch(
+        `${API_URL}/api/sellers/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: trimmedEmail,
+            password,
+          }),
+        }
+      );
+
+      let sellerData = {};
+
+      try {
+        sellerData = await sellerResponse.json();
+      } catch {
+        sellerData = {};
+      }
+
+      if (sellerResponse.ok && sellerData.access_token) {
+        /*
+         * Hapus session admin lama.
+         */
+        localStorage.removeItem(
+          "canteenly_admin_token"
+        );
+
+        localStorage.removeItem(
+          "canteenly_admin"
+        );
+
+        /*
+         * Simpan session seller.
+         */
+        localStorage.setItem(
+          "canteenly_seller_token",
+          sellerData.access_token
+        );
+
+        if (sellerData.seller) {
+          localStorage.setItem(
+            "canteenly_seller",
+            JSON.stringify(sellerData.seller)
+          );
+        }
+
+        /*
+         * Seller berhasil login.
+         */
+        navigate("/seller/dashboard", {
+          replace: true,
+        });
+
+        return;
+      }
+    } catch (sellerError) {
+      console.error(
+        "Seller login request error:",
+        sellerError
+      );
+    }
+
+    /*
+     * =====================================================
+     * 2. KALAU BUKAN SELLER, COBA LOGIN SEBAGAI ADMIN
+     * =====================================================
+     */
+
+    try {
+      const adminResponse = await fetch(
         `${API_URL}/api/admin/login`,
         {
           method: "POST",
@@ -46,79 +127,72 @@ function SellerLogin() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            email: email.trim(),
+            email: trimmedEmail,
             password,
           }),
         }
       );
 
-      let data = {};
+      let adminData = {};
 
       try {
-        data = await response.json();
+        adminData = await adminResponse.json();
       } catch {
-        data = {};
+        adminData = {};
       }
 
-      if (!response.ok) {
-        throw new Error(
-          data.detail ||
-            "Email atau password admin salah."
+      if (adminResponse.ok && adminData.access_token) {
+        /*
+         * Hapus session seller lama.
+         */
+        localStorage.removeItem(
+          "canteenly_seller_token"
         );
-      }
 
-      if (!data.access_token) {
-        throw new Error(
-          "Token admin tidak diterima dari server."
+        localStorage.removeItem(
+          "canteenly_seller"
         );
-      }
 
-      /*
-       * Hapus session seller lama agar
-       * session tidak tercampur.
-       */
-      localStorage.removeItem(
-        "canteenly_seller_token"
-      );
-
-      localStorage.removeItem(
-        "canteenly_seller"
-      );
-
-      /*
-       * Simpan token admin.
-       */
-      localStorage.setItem(
-        "canteenly_admin_token",
-        data.access_token
-      );
-
-      /*
-       * Simpan data admin.
-       */
-      if (data.admin) {
+        /*
+         * Simpan session admin.
+         */
         localStorage.setItem(
-          "canteenly_admin",
-          JSON.stringify(data.admin)
+          "canteenly_admin_token",
+          adminData.access_token
         );
+
+        if (adminData.admin) {
+          localStorage.setItem(
+            "canteenly_admin",
+            JSON.stringify(adminData.admin)
+          );
+        }
+
+        /*
+         * Admin berhasil login.
+         */
+        navigate("/admin", {
+          replace: true,
+        });
+
+        return;
       }
 
       /*
-       * Login berhasil.
-       * Masuk ke dashboard admin.
+       * Kedua login gagal.
        */
-      navigate("/admin/dashboard", {
-        replace: true,
-      });
-    } catch (error) {
+      setError(
+        adminData.detail ||
+          "Email atau password salah."
+      );
+    } catch (adminError) {
       console.error(
-        "Admin login error:",
-        error
+        "Admin login request error:",
+        adminError
       );
 
       setError(
-        error.message ||
-          "Tidak dapat terhubung ke server."
+        "Tidak dapat terhubung ke server."
       );
     } finally {
       setLoading(false);
@@ -143,12 +217,12 @@ function SellerLogin() {
         </div>
 
         <div className="seller-login-heading">
-          <span>ADMIN AREA</span>
+          <span>SELLER & ADMIN AREA</span>
 
           <h1>Selamat datang kembali.</h1>
 
           <p>
-            Masuk ke dashboard untuk mengelola
+            Masuk untuk mengelola toko dan
             Canteenly.
           </p>
         </div>
@@ -162,7 +236,7 @@ function SellerLogin() {
             <input
               id="seller-email"
               type="email"
-              placeholder="admin@canteenly.com"
+              placeholder="Email akun"
               value={email}
               onChange={(event) =>
                 setEmail(event.target.value)
@@ -262,7 +336,8 @@ function SellerLogin() {
           <LockKeyhole size={14} />
 
           <span>
-            Area khusus administrator Canteenly
+            Akses khusus seller dan administrator
+            Canteenly
           </span>
         </div>
       </div>
