@@ -5,7 +5,8 @@
 .buyer-dashboard-page {
   min-height: 100vh;
   position: relative;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
 
   background:
     radial-gradient(
@@ -29,7 +30,7 @@
 ======================================== */
 
 .buyer-bg-orb {
-  position: fixed;
+  position: absolute;
   pointer-events: none;
   border-radius: 50%;
   z-index: 0;
@@ -55,7 +56,7 @@
 }
 
 .buyer-bg-grid {
-  position: fixed;
+  position: absolute;
   inset: 0;
 
   pointer-events: none;
