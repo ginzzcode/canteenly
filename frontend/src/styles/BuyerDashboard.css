@@ -1723,3 +1723,35 @@
     font-size: 12px;
   }
 }
+
+/* ========================================
+   MOBILE SCROLL FIX
+======================================== */
+
+html,
+body,
+#root {
+  min-height: 100%;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body {
+  margin: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.buyer-dashboard-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+.buyer-dashboard-content {
+  height: auto;
+  min-height: 0;
+}
