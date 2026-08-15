@@ -39,7 +39,7 @@ function SellerLogin() {
       setLoading(true);
 
       const response = await fetch(
-        `${API_URL}/api/sellers/login`,
+        `${API_URL}/api/admin/login`,
         {
           method: "POST",
           headers: {
@@ -52,39 +52,69 @@ function SellerLogin() {
         }
       );
 
-      const data = await response.json();
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
         throw new Error(
-          data.detail || "Email atau password salah."
+          data.detail ||
+            "Email atau password admin salah."
+        );
+      }
+
+      if (!data.access_token) {
+        throw new Error(
+          "Token admin tidak diterima dari server."
         );
       }
 
       /*
-       * Simpan token seller
+       * Hapus session seller lama agar
+       * session tidak tercampur.
+       */
+      localStorage.removeItem(
+        "canteenly_seller_token"
+      );
+
+      localStorage.removeItem(
+        "canteenly_seller"
+      );
+
+      /*
+       * Simpan token admin.
        */
       localStorage.setItem(
-        "canteenly_seller_token",
+        "canteenly_admin_token",
         data.access_token
       );
 
       /*
-       * Simpan data seller
+       * Simpan data admin.
        */
-      localStorage.setItem(
-        "canteenly_seller",
-        JSON.stringify(data.seller)
-      );
+      if (data.admin) {
+        localStorage.setItem(
+          "canteenly_admin",
+          JSON.stringify(data.admin)
+        );
+      }
 
       /*
-       * Login berhasil
-       * Langsung masuk ke Seller Dashboard
+       * Login berhasil.
+       * Masuk ke dashboard admin.
        */
-      navigate("/seller/dashboard", {
+      navigate("/admin/dashboard", {
         replace: true,
       });
     } catch (error) {
-      console.error("Seller login error:", error);
+      console.error(
+        "Admin login error:",
+        error
+      );
 
       setError(
         error.message ||
@@ -113,13 +143,13 @@ function SellerLogin() {
         </div>
 
         <div className="seller-login-heading">
-          <span>SELLER AREA</span>
+          <span>ADMIN AREA</span>
 
           <h1>Selamat datang kembali.</h1>
 
           <p>
             Masuk ke dashboard untuk mengelola
-            pesanan dan menu kantinmu.
+            Canteenly.
           </p>
         </div>
 
@@ -132,7 +162,7 @@ function SellerLogin() {
             <input
               id="seller-email"
               type="email"
-              placeholder="contoh@kantin.com"
+              placeholder="admin@canteenly.com"
               value={email}
               onChange={(event) =>
                 setEmail(event.target.value)
@@ -205,6 +235,7 @@ function SellerLogin() {
                   size={18}
                   className="seller-login-spinner"
                 />
+
                 Memproses...
               </>
             ) : (
@@ -223,6 +254,7 @@ function SellerLogin() {
           disabled={loading}
         >
           <ArrowLeft size={15} />
+
           Kembali ke halaman utama
         </button>
 
@@ -230,7 +262,7 @@ function SellerLogin() {
           <LockKeyhole size={14} />
 
           <span>
-            Area khusus penjual Canteenly
+            Area khusus administrator Canteenly
           </span>
         </div>
       </div>
