@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -40,11 +39,9 @@ function SellerLogin() {
 
     setLoading(true);
 
-    /*
-     * =====================================================
-     * 1. COBA LOGIN SEBAGAI SELLER
-     * =====================================================
-     */
+    // =====================================================
+    // 1. COBA LOGIN SELLER
+    // =====================================================
 
     try {
       const sellerResponse = await fetch(
@@ -69,10 +66,11 @@ function SellerLogin() {
         sellerData = {};
       }
 
-      if (sellerResponse.ok && sellerData.access_token) {
-        /*
-         * Hapus session admin lama.
-         */
+      if (
+        sellerResponse.ok &&
+        sellerData.access_token
+      ) {
+        // Hapus session admin
         localStorage.removeItem(
           "canteenly_admin_token"
         );
@@ -81,9 +79,7 @@ function SellerLogin() {
           "canteenly_admin"
         );
 
-        /*
-         * Simpan session seller.
-         */
+        // Simpan session seller
         localStorage.setItem(
           "canteenly_seller_token",
           sellerData.access_token
@@ -96,9 +92,7 @@ function SellerLogin() {
           );
         }
 
-        /*
-         * Seller berhasil login.
-         */
+        // Seller -> SellerDashboard
         navigate("/seller/dashboard", {
           replace: true,
         });
@@ -112,11 +106,9 @@ function SellerLogin() {
       );
     }
 
-    /*
-     * =====================================================
-     * 2. KALAU BUKAN SELLER, COBA LOGIN SEBAGAI ADMIN
-     * =====================================================
-     */
+    // =====================================================
+    // 2. KALAU BUKAN SELLER, COBA LOGIN ADMIN
+    // =====================================================
 
     try {
       const adminResponse = await fetch(
@@ -141,10 +133,11 @@ function SellerLogin() {
         adminData = {};
       }
 
-      if (adminResponse.ok && adminData.access_token) {
-        /*
-         * Hapus session seller lama.
-         */
+      if (
+        adminResponse.ok &&
+        adminData.access_token
+      ) {
+        // Hapus session seller
         localStorage.removeItem(
           "canteenly_seller_token"
         );
@@ -153,9 +146,7 @@ function SellerLogin() {
           "canteenly_seller"
         );
 
-        /*
-         * Simpan session admin.
-         */
+        // Simpan session admin
         localStorage.setItem(
           "canteenly_admin_token",
           adminData.access_token
@@ -168,19 +159,18 @@ function SellerLogin() {
           );
         }
 
-        /*
-         * Admin berhasil login.
-         */
-        navigate("/admin", {
+        // =================================================
+        // ADMIN -> Admin.jsx
+        // Route-nya adalah /admin/dashboard
+        // =================================================
+
+        navigate("/admin/dashboard", {
           replace: true,
         });
 
         return;
       }
 
-      /*
-       * Kedua login gagal.
-       */
       setError(
         adminData.detail ||
           "Email atau password salah."
@@ -309,7 +299,6 @@ function SellerLogin() {
                   size={18}
                   className="seller-login-spinner"
                 />
-
                 Memproses...
               </>
             ) : (
@@ -328,7 +317,6 @@ function SellerLogin() {
           disabled={loading}
         >
           <ArrowLeft size={15} />
-
           Kembali ke halaman utama
         </button>
 

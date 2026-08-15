@@ -11,6 +11,8 @@ import SellerMenu from "./seller/SellerMenu";
 import SellerOrders from "./seller/SellerOrders";
 import SellerSetting from "./seller/SellerSetting";
 
+import Admin from "./Admin";
+
 function App() {
   return (
     <Routes>
@@ -39,13 +41,17 @@ function App() {
       />
 
       {/* ========================================
-          SELLER
+          SELLER & ADMIN LOGIN
       ======================================== */}
 
       <Route
         path="/seller/login"
         element={<SellerLogin />}
       />
+
+      {/* ========================================
+          SELLER
+      ======================================== */}
 
       <Route
         path="/seller/dashboard"
@@ -64,7 +70,16 @@ function App() {
 
       <Route
         path="/seller/settings"
-       element={<SellerSetting />}
+        element={<SellerSetting />}
+      />
+
+      {/* ========================================
+          ADMIN
+      ======================================== */}
+
+      <Route
+        path="/admin/dashboard"
+        element={<Admin />}
       />
 
       {/* ========================================
@@ -73,7 +88,12 @@ function App() {
 
       <Route
         path="/"
-        element={<Navigate to="/buyer" replace />}
+        element={
+          <Navigate
+            to="/buyer"
+            replace
+          />
+        }
       />
 
       {/* ========================================
@@ -82,7 +102,12 @@ function App() {
 
       <Route
         path="*"
-        element={<Navigate to="/buyer" replace />}
+        element={
+          <Navigate
+            to="/buyer"
+            replace
+          />
+        }
       />
     </Routes>
   );

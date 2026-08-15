@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Admin.css";
 
@@ -6,235 +7,222 @@ const API_URL =
   import.meta.env.VITE_API_URL ||
   "https://canteenly.fastapicloud.dev";
 
-const TOKEN_KEY = "canteenly_seller_token";
-const SELLER_KEY = "canteenly_seller";
+const TOKEN_KEY = "canteenly_admin_token";
+const ADMIN_KEY = "canteenly_admin";
 
 function Admin() {
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const [seller, setSeller] = useState(null);
+  const [admin, setAdmin] = useState(null);
+  const [dashboard, setDashboard] = useState(null);
+  const [sellers, setSellers] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [loginLoading, setLoginLoading] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [sellersLoading, setSellersLoading] = useState(true);
 
   const [error, setError] = useState("");
 
   // =========================================================
-  // CHECK SESSION
+  // LOAD ADMIN DASHBOARD
+  // =========================================================
+
+  const loadDashboard = useCallback(async (token) => {
+    try {
+      setDashboardLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/api/admin/dashboard`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        throw new Error("SESSION_EXPIRED");
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          "Gagal mengambil data dashboard admin."
+        );
+      }
+
+      const data = await response.json();
+
+      setDashboard(data);
+    } catch (error) {
+      console.error(
+        "Gagal mengambil dashboard admin:",
+        error
+      );
+
+      if (error.message === "SESSION_EXPIRED") {
+        handleLogout();
+        return;
+      }
+
+      setError(
+        "Data dashboard tidak dapat dimuat."
+      );
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, []);
+
+  // =========================================================
+  // LOAD SELLERS
+  // =========================================================
+
+  const loadSellers = useCallback(async (token) => {
+    try {
+      setSellersLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/api/admin/sellers`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        throw new Error("SESSION_EXPIRED");
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          "Gagal mengambil daftar seller."
+        );
+      }
+
+      const data = await response.json();
+
+      setSellers(
+        Array.isArray(data.sellers)
+          ? data.sellers
+          : []
+      );
+    } catch (error) {
+      console.error(
+        "Gagal mengambil seller:",
+        error
+      );
+
+      if (error.message === "SESSION_EXPIRED") {
+        handleLogout();
+        return;
+      }
+
+      setError(
+        "Daftar seller tidak dapat dimuat."
+      );
+    } finally {
+      setSellersLoading(false);
+    }
+  }, []);
+
+  // =========================================================
+  // CHECK ADMIN SESSION
   // =========================================================
 
   useEffect(() => {
-    checkSession();
+    checkAdminSession();
   }, []);
 
-  async function checkSession() {
-    const token =
-      localStorage.getItem(TOKEN_KEY);
+  async function checkAdminSession() {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const savedAdmin = localStorage.getItem(ADMIN_KEY);
 
-    const savedSeller =
-      localStorage.getItem(SELLER_KEY);
-
-    /*
-     * Tidak ada token berarti belum login
-     */
     if (!token) {
       setLoading(false);
+
+      navigate("/seller/login", {
+        replace: true,
+      });
+
       return;
     }
 
-    /*
-     * Tampilkan data seller dari localStorage
-     * terlebih dahulu agar halaman tidak terasa kosong
-     */
-    if (savedSeller) {
+    if (savedAdmin) {
       try {
-        setSeller(
-          JSON.parse(savedSeller)
-        );
+        setAdmin(JSON.parse(savedAdmin));
       } catch {
-        localStorage.removeItem(
-          SELLER_KEY
-        );
+        localStorage.removeItem(ADMIN_KEY);
       }
     }
 
     try {
       const response = await fetch(
-        `${API_URL}/api/sellers/me`,
+        `${API_URL}/api/admin/me`,
         {
           method: "GET",
-
           headers: {
-            Authorization:
-              `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
 
-      /*
-       * Token sudah tidak valid
-       */
       if (!response.ok) {
-        localStorage.removeItem(
-          TOKEN_KEY
-        );
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(ADMIN_KEY);
 
-        localStorage.removeItem(
-          SELLER_KEY
-        );
-
-        setSeller(null);
+        setAdmin(null);
         setLoading(false);
+
+        navigate("/seller/login", {
+          replace: true,
+        });
 
         return;
       }
 
-      const data =
-        await response.json();
+      const data = await response.json();
 
-      /*
-       * Update data seller terbaru
-       */
-      if (data.seller) {
-        setSeller(data.seller);
+      if (data.admin) {
+        setAdmin(data.admin);
 
         localStorage.setItem(
-          SELLER_KEY,
-          JSON.stringify(
-            data.seller
-          )
+          ADMIN_KEY,
+          JSON.stringify(data.admin)
         );
       }
-    } catch (err) {
+
+      // Ambil data dashboard + seller
+      await Promise.all([
+        loadDashboard(token),
+        loadSellers(token),
+      ]);
+    } catch (error) {
       console.error(
-        "Gagal mengecek session:",
-        err
+        "Gagal mengecek session admin:",
+        error
       );
 
-      /*
-       * Jangan langsung logout kalau
-       * server sedang tidak bisa diakses.
-       *
-       * Kalau data seller masih ada di
-       * localStorage, user tetap dianggap
-       * login sementara.
-       */
-      if (!savedSeller) {
-        setError(
-          "Tidak dapat terhubung ke server."
-        );
+      if (!savedAdmin) {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(ADMIN_KEY);
+
+        navigate("/seller/login", {
+          replace: true,
+        });
+
+        return;
       }
+
+      // Kalau session masih punya data lokal,
+      // dashboard tetap boleh tampil.
+      await Promise.all([
+        loadDashboard(token),
+        loadSellers(token),
+      ]);
     } finally {
       setLoading(false);
-    }
-  }
-
-  // =========================================================
-  // LOGIN
-  // =========================================================
-
-  async function handleLogin(event) {
-    event.preventDefault();
-
-    setError("");
-
-    if (
-      !email.trim() ||
-      !password.trim()
-    ) {
-      setError(
-        "Email dan password wajib diisi."
-      );
-
-      return;
-    }
-
-    try {
-      setLoginLoading(true);
-
-      const response =
-        await fetch(
-          `${API_URL}/api/sellers/login`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              email:
-                email.trim(),
-              password,
-            }),
-          }
-        );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.detail ||
-            "Email atau password salah."
-        );
-      }
-
-      if (!data.access_token) {
-        throw new Error(
-          "Token login tidak ditemukan."
-        );
-      }
-
-      /*
-       * Gunakan key yang SAMA dengan
-       * SellerLogin.jsx
-       */
-      localStorage.setItem(
-        TOKEN_KEY,
-        data.access_token
-      );
-
-      /*
-       * Simpan data seller
-       */
-      if (data.seller) {
-        localStorage.setItem(
-          SELLER_KEY,
-          JSON.stringify(
-            data.seller
-          )
-        );
-
-        setSeller(
-          data.seller
-        );
-      }
-
-      setPassword("");
-
-      /*
-       * Login berhasil.
-       *
-       * Tidak perlu navigate ke Seller Dashboard
-       * karena Admin punya dashboard sendiri.
-       */
-    } catch (err) {
-      console.error(
-        "Admin login error:",
-        err
-      );
-
-      setError(
-        err.message ||
-          "Tidak dapat terhubung ke server."
-      );
-    } finally {
-      setLoginLoading(false);
     }
   }
 
@@ -243,19 +231,96 @@ function Admin() {
   // =========================================================
 
   function handleLogout() {
-    localStorage.removeItem(
-      TOKEN_KEY
-    );
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(ADMIN_KEY);
 
-    localStorage.removeItem(
-      SELLER_KEY
-    );
+    setAdmin(null);
+    setDashboard(null);
+    setSellers([]);
 
-    setSeller(null);
+    navigate("/seller/login", {
+      replace: true,
+    });
+  }
 
-    setEmail("");
-    setPassword("");
-    setError("");
+  // =========================================================
+  // UPDATE SELLER STATUS
+  // =========================================================
+
+  async function handleSellerStatus(seller) {
+    const token = localStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      handleLogout();
+      return;
+    }
+
+    const newStatus =
+      seller.is_active === false;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/admin/sellers/${seller.id}/status`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            is_active: newStatus,
+          }),
+        }
+      );
+
+      if (response.status === 401) {
+        handleLogout();
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            "Gagal mengubah status seller."
+        );
+      }
+
+      // Update seller langsung di UI
+      setSellers((currentSellers) =>
+        currentSellers.map((item) =>
+          item.id === seller.id
+            ? data.seller
+            : item
+        )
+      );
+
+      // Refresh statistik
+      await loadDashboard(token);
+    } catch (error) {
+      console.error(
+        "Gagal mengubah status seller:",
+        error
+      );
+
+      setError(
+        error.message ||
+          "Gagal mengubah status seller."
+      );
+    }
+  }
+
+  // =========================================================
+  // FORMAT CURRENCY
+  // =========================================================
+
+  function formatRupiah(value) {
+    const number = Number(value || 0);
+
+    return new Intl.NumberFormat(
+      "id-ID"
+    ).format(number);
   }
 
   // =========================================================
@@ -269,12 +334,11 @@ function Admin() {
           <div className="admin-spinner" />
 
           <h2>
-            Memeriksa sesi...
+            Memeriksa sesi admin...
           </h2>
 
           <p>
-            Tunggu sebentar, sedang
-            memeriksa akun admin.
+            Sedang memverifikasi akun administrator.
           </p>
         </div>
       </div>
@@ -282,266 +346,36 @@ function Admin() {
   }
 
   // =========================================================
-  // LOGIN
+  // SAFETY
   // =========================================================
 
-  if (!seller) {
-    return (
-      <div className="admin-page">
-        <div className="admin-background-shape admin-shape-one" />
-        <div className="admin-background-shape admin-shape-two" />
-
-        <main className="admin-login-wrapper">
-          <section className="admin-login-card">
-
-            {/* BRAND */}
-
-            <div className="admin-brand">
-              <div className="admin-brand-icon">
-                🍽️
-              </div>
-
-              <div>
-                <span className="admin-brand-name">
-                  Canteenly
-                </span>
-
-                <span className="admin-brand-label">
-                  ADMIN PANEL
-                </span>
-              </div>
-            </div>
-
-            {/* HEADING */}
-
-            <div className="admin-login-heading">
-              <p className="admin-eyebrow">
-                MANAGEMENT SYSTEM
-              </p>
-
-              <h1>
-                Selamat datang kembali.
-              </h1>
-
-              <p>
-                Masuk untuk mengelola toko,
-                menu, dan pesanan Canteenly.
-              </p>
-            </div>
-
-            {/* FORM */}
-
-            <form
-              className="admin-login-form"
-              onSubmit={handleLogin}
-            >
-              {error && (
-                <div className="admin-error">
-                  <span className="admin-error-icon">
-                    !
-                  </span>
-
-                  <span>
-                    {error}
-                  </span>
-                </div>
-              )}
-
-              {/* EMAIL */}
-
-              <div className="admin-field">
-                <label htmlFor="admin-email">
-                  Email
-                </label>
-
-                <div className="admin-input-wrapper">
-                  <span className="admin-input-icon">
-                    ✉
-                  </span>
-
-                  <input
-                    id="admin-email"
-                    type="email"
-                    value={email}
-                    onChange={(event) =>
-                      setEmail(
-                        event.target.value
-                      )
-                    }
-                    placeholder="contoh@kantin.com"
-                    autoComplete="email"
-                    disabled={
-                      loginLoading
-                    }
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* PASSWORD */}
-
-              <div className="admin-field">
-                <label htmlFor="admin-password">
-                  Password
-                </label>
-
-                <div className="admin-input-wrapper">
-                  <span className="admin-input-icon">
-                    🔒
-                  </span>
-
-                  <input
-                    id="admin-password"
-                    type="password"
-                    value={password}
-                    onChange={(event) =>
-                      setPassword(
-                        event.target.value
-                      )
-                    }
-                    placeholder="Masukkan password"
-                    autoComplete="current-password"
-                    disabled={
-                      loginLoading
-                    }
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* LOGIN BUTTON */}
-
-              <button
-                className="admin-login-button"
-                type="submit"
-                disabled={
-                  loginLoading
-                }
-              >
-                {loginLoading ? (
-                  <>
-                    <span className="admin-button-spinner" />
-
-                    Memproses...
-                  </>
-                ) : (
-                  <>
-                    Masuk ke Dashboard
-
-                    <span>
-                      →
-                    </span>
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* FOOTER */}
-
-            <div className="admin-login-footer">
-              <span className="admin-status-dot" />
-
-              Canteenly Management System
-            </div>
-          </section>
-
-          {/* VISUAL */}
-
-          <section className="admin-login-visual">
-            <div className="admin-visual-content">
-
-              <span className="admin-visual-badge">
-                SMART CANTEEN
-              </span>
-
-              <h2>
-                Kelola kantin.
-                <br />
-                Lebih sederhana.
-              </h2>
-
-              <p>
-                Pantau pesanan, kelola menu,
-                dan atur toko dari satu
-                dashboard.
-              </p>
-
-              <div className="admin-feature-list">
-
-                <div className="admin-feature">
-                  <span>✓</span>
-
-                  <div>
-                    <strong>
-                      Manajemen Pesanan
-                    </strong>
-
-                    <small>
-                      Pantau pesanan secara
-                      real-time
-                    </small>
-                  </div>
-                </div>
-
-                <div className="admin-feature">
-                  <span>✓</span>
-
-                  <div>
-                    <strong>
-                      Kelola Menu
-                    </strong>
-
-                    <small>
-                      Atur menu dan
-                      ketersediaannya
-                    </small>
-                  </div>
-                </div>
-
-                <div className="admin-feature">
-                  <span>✓</span>
-
-                  <div>
-                    <strong>
-                      Dashboard Toko
-                    </strong>
-
-                    <small>
-                      Lihat performa toko
-                      dengan mudah
-                    </small>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            <div className="admin-visual-decoration admin-decoration-one" />
-
-            <div className="admin-visual-decoration admin-decoration-two" />
-
-            <div className="admin-food-card">
-              <span>🍜</span>
-
-              <div>
-                <strong>
-                  Pesanan Baru
-                </strong>
-
-                <small>
-                  Siap diproses
-                </small>
-              </div>
-
-              <b>
-                +3
-              </b>
-            </div>
-          </section>
-        </main>
-      </div>
-    );
+  if (!admin) {
+    return null;
   }
+
+  // =========================================================
+  // STATS
+  // =========================================================
+
+  const stats = dashboard?.stats || {};
+
+  const totalSellers =
+    stats.total_sellers || 0;
+
+  const activeSellers =
+    stats.active_sellers || 0;
+
+  const inactiveSellers =
+    stats.inactive_sellers || 0;
+
+  const totalMenus =
+    stats.total_menus || 0;
+
+  const totalOrders =
+    stats.total_orders || 0;
+
+  const totalIncome =
+    stats.total_income || 0;
 
   // =========================================================
   // ADMIN DASHBOARD
@@ -550,11 +384,14 @@ function Admin() {
   return (
     <div className="admin-dashboard">
 
-      {/* HEADER */}
+      {/* =====================================================
+          HEADER
+      ====================================================== */}
 
       <header className="admin-dashboard-header">
 
         <div className="admin-dashboard-brand">
+
           <div className="admin-brand-icon">
             🍽️
           </div>
@@ -568,154 +405,536 @@ function Admin() {
               Admin Panel
             </span>
           </div>
+
         </div>
 
         <div className="admin-account">
 
           <div className="admin-account-info">
+
             <strong>
-              {
-                seller.store_name ||
-                seller.storeName ||
-                "Kantin"
-              }
+              {admin.name ||
+                "Administrator"}
             </strong>
 
             <span>
-              {
-                seller.name ||
-                seller.email
-              }
+              {admin.email ||
+                "admin@canteenly.com"}
             </span>
+
           </div>
 
           <button
             type="button"
             className="admin-logout-button"
-            onClick={
-              handleLogout
-            }
+            onClick={handleLogout}
           >
             Keluar
           </button>
 
         </div>
+
       </header>
 
-      {/* CONTENT */}
+      {/* =====================================================
+          CONTENT
+      ====================================================== */}
 
       <main className="admin-dashboard-content">
 
+        {/* TITLE */}
+
         <div className="admin-dashboard-title">
+
           <div>
+
             <span className="admin-eyebrow">
-              DASHBOARD
+              ADMINISTRATOR
             </span>
 
             <h1>
               Halo,{" "}
-              {seller.name ||
-                "Admin"}{" "}
-              👋
+              {admin.name || "Admin"} 👋
             </h1>
 
             <p>
-              Kelola aktivitas kantin
-              dari sini.
+              Kelola sistem Canteenly dari
+              satu dashboard.
             </p>
+
           </div>
+
         </div>
 
-        {/* STATS */}
+        {/* ERROR */}
+
+        {error && (
+          <div className="admin-error-banner">
+            {error}
+
+            <button
+              type="button"
+              onClick={() => setError("")}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* ===================================================
+            STATS
+        ==================================================== */}
 
         <section className="admin-stats">
 
+          {/* TOTAL SELLER */}
+
           <div className="admin-stat-card">
+
             <div className="admin-stat-icon">
-              🧾
+              🏪
             </div>
 
             <div>
+
               <span>
-                Total Pesanan
+                Total Seller
               </span>
 
               <strong>
-                0
+                {dashboardLoading
+                  ? "..."
+                  : totalSellers}
               </strong>
+
+              <small>
+                {activeSellers} aktif
+                {inactiveSellers > 0 &&
+                  ` • ${inactiveSellers} nonaktif`}
+              </small>
+
             </div>
+
           </div>
 
-          <div className="admin-stat-card">
-            <div className="admin-stat-icon">
-              ⏳
-            </div>
-
-            <div>
-              <span>
-                Pesanan Menunggu
-              </span>
-
-              <strong>
-                0
-              </strong>
-            </div>
-          </div>
+          {/* TOTAL MENU */}
 
           <div className="admin-stat-card">
+
             <div className="admin-stat-icon">
               🍱
             </div>
 
             <div>
+
               <span>
-                Siap Diambil
+                Total Menu
               </span>
 
               <strong>
-                0
+                {dashboardLoading
+                  ? "..."
+                  : totalMenus}
               </strong>
+
+              <small>
+                Menu dalam sistem
+              </small>
+
             </div>
+
           </div>
 
+          {/* TOTAL ORDER */}
+
           <div className="admin-stat-card">
+
+            <div className="admin-stat-icon">
+              🧾
+            </div>
+
+            <div>
+
+              <span>
+                Total Pesanan
+              </span>
+
+              <strong>
+                {dashboardLoading
+                  ? "..."
+                  : totalOrders}
+              </strong>
+
+              <small>
+                Seluruh pesanan
+              </small>
+
+            </div>
+
+          </div>
+
+          {/* INCOME */}
+
+          <div className="admin-stat-card">
+
             <div className="admin-stat-icon">
               💰
             </div>
 
             <div>
+
               <span>
-                Pendapatan Hari Ini
+                Pendapatan
               </span>
 
               <strong>
-                Rp0
+                {dashboardLoading
+                  ? "..."
+                  : `Rp${formatRupiah(
+                      totalIncome
+                    )}`}
               </strong>
+
+              <small>
+                Pesanan selesai
+              </small>
+
             </div>
+
           </div>
 
         </section>
 
-        {/* EMPTY DASHBOARD */}
+        {/* ===================================================
+            CONTENT GRID
+        ==================================================== */}
 
-        <section className="admin-empty-card">
+        <section className="admin-content-grid">
 
-          <div className="admin-empty-icon">
-            📊
+          {/* =================================================
+              SYSTEM CARD
+          ================================================== */}
+
+          <div className="admin-panel-card">
+
+            <div className="admin-panel-header">
+
+              <div>
+
+                <span className="admin-panel-eyebrow">
+                  SISTEM
+                </span>
+
+                <h2>
+                  Canteenly Management
+                </h2>
+
+              </div>
+
+              <div className="admin-online-status">
+                <span />
+                Online
+              </div>
+
+            </div>
+
+            <div className="admin-system-list">
+
+              <div className="admin-system-item">
+
+                <div className="admin-system-icon">
+                  🏪
+                </div>
+
+                <div>
+
+                  <strong>
+                    Manajemen Seller
+                  </strong>
+
+                  <span>
+                    {totalSellers} seller
+                    terdaftar
+                  </span>
+
+                </div>
+
+                <span className="admin-arrow">
+                  →
+                </span>
+
+              </div>
+
+              <div className="admin-system-item">
+
+                <div className="admin-system-icon">
+                  🍽️
+                </div>
+
+                <div>
+
+                  <strong>
+                    Manajemen Menu
+                  </strong>
+
+                  <span>
+                    {totalMenus} menu
+                    tersedia
+                  </span>
+
+                </div>
+
+                <span className="admin-arrow">
+                  →
+                </span>
+
+              </div>
+
+              <div className="admin-system-item">
+
+                <div className="admin-system-icon">
+                  📦
+                </div>
+
+                <div>
+
+                  <strong>
+                    Manajemen Pesanan
+                  </strong>
+
+                  <span>
+                    {totalOrders} pesanan
+                    tercatat
+                  </span>
+
+                </div>
+
+                <span className="admin-arrow">
+                  →
+                </span>
+
+              </div>
+
+            </div>
+
           </div>
 
-          <h2>
-            Dashboard admin siap digunakan
-          </h2>
+          {/* =================================================
+              WELCOME CARD
+          ================================================== */}
 
-          <p>
-            Statistik, pesanan, dan
-            pengelolaan menu akan
-            ditampilkan di area ini.
-          </p>
+          <div className="admin-welcome-card">
+
+            <div className="admin-welcome-icon">
+              🛡️
+            </div>
+
+            <span className="admin-panel-eyebrow">
+              ADMIN ACCESS
+            </span>
+
+            <h2>
+              Sistem siap digunakan.
+            </h2>
+
+            <p>
+              Kamu login sebagai administrator
+              Canteenly. Semua pengelolaan sistem
+              akan dilakukan dari panel ini.
+            </p>
+
+            <div className="admin-account-badge">
+
+              <span className="admin-account-badge-dot" />
+
+              <div>
+
+                <strong>
+                  {admin.name ||
+                    "Administrator"}
+                </strong>
+
+                <small>
+                  {admin.email}
+                </small>
+
+              </div>
+
+            </div>
+
+          </div>
 
         </section>
+
+        {/* ===================================================
+            SELLER MANAGEMENT
+        ==================================================== */}
+
+        <section className="admin-panel-card admin-sellers-panel">
+
+          <div className="admin-panel-header">
+
+            <div>
+
+              <span className="admin-panel-eyebrow">
+                SELLER
+              </span>
+
+              <h2>
+                Daftar Seller
+              </h2>
+
+            </div>
+
+            <div className="admin-seller-count">
+              {totalSellers} Seller
+            </div>
+
+          </div>
+
+          {/* SELLER LOADING */}
+
+          {sellersLoading ? (
+            <div className="admin-sellers-loading">
+
+              <div className="admin-spinner" />
+
+              <span>
+                Memuat daftar seller...
+              </span>
+
+            </div>
+          ) : sellers.length === 0 ? (
+
+            /* EMPTY */
+
+            <div className="admin-empty-state">
+
+              <div>
+                🏪
+              </div>
+
+              <h3>
+                Belum ada seller
+              </h3>
+
+              <p>
+                Belum ada akun seller yang
+                terdaftar di sistem.
+              </p>
+
+            </div>
+
+          ) : (
+
+            /* SELLER LIST */
+
+            <div className="admin-seller-list">
+
+              {sellers.map((seller) => {
+
+                const isActive =
+                  seller.is_active !== false;
+
+                return (
+                  <div
+                    className="admin-seller-item"
+                    key={seller.id}
+                  >
+
+                    {/* SELLER AVATAR */}
+
+                    <div className="admin-seller-avatar">
+
+                      {seller.profile_image ? (
+                        <img
+                          src={
+                            seller.profile_image
+                          }
+                          alt={
+                            seller.store_name ||
+                            seller.name ||
+                            "Seller"
+                          }
+                        />
+                      ) : (
+                        <span>
+                          🏪
+                        </span>
+                      )}
+
+                    </div>
+
+                    {/* SELLER INFO */}
+
+                    <div className="admin-seller-info">
+
+                      <div className="admin-seller-name-row">
+
+                        <strong>
+                          {seller.store_name ||
+                            "Kantin"}
+                        </strong>
+
+                        <span
+                          className={
+                            isActive
+                              ? "admin-seller-status active"
+                              : "admin-seller-status inactive"
+                          }
+                        >
+                          <span />
+
+                          {isActive
+                            ? "Aktif"
+                            : "Nonaktif"}
+                        </span>
+
+                      </div>
+
+                      <span>
+                        {seller.name ||
+                          "Seller"}
+                      </span>
+
+                      <small>
+                        {seller.email ||
+                          "-"}
+                      </small>
+
+                    </div>
+
+                    {/* ACTION */}
+
+                    <button
+                      type="button"
+                      className={
+                        isActive
+                          ? "admin-seller-toggle deactivate"
+                          : "admin-seller-toggle activate"
+                      }
+                      onClick={() =>
+                        handleSellerStatus(
+                          seller
+                        )
+                      }
+                    >
+                      {isActive
+                        ? "Nonaktifkan"
+                        : "Aktifkan"}
+                    </button>
+
+                  </div>
+                );
+              })}
+
+            </div>
+          )}
+
+        </section>
+
       </main>
+
     </div>
   );
 }
