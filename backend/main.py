@@ -1932,3 +1932,29 @@ def debug_database_host():
             "host": None,
             "error": str(error),
         }
+
+    @app.get("/debug/admin")
+def debug_admin():
+    admin = admins_collection.find_one(
+        {
+            "email": "admin@canteenly.com"
+        }
+    )
+
+    if not admin:
+        return {
+            "found": False
+        }
+
+    return {
+        "found": True,
+        "id": str(admin["_id"]),
+        "email": admin.get("email"),
+        "name": admin.get("name"),
+        "password_hash_prefix": (
+            admin.get("password", "")[:7]
+        ),
+        "password_hash_length": len(
+            admin.get("password", "")
+        ),
+    }
