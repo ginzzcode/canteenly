@@ -24,7 +24,23 @@ function Admin() {
   const [error, setError] = useState("");
 
   // =========================================================
-  // LOAD ADMIN DASHBOARD
+  // ADD SELLER
+  // =========================================================
+
+  const [showAddSeller, setShowAddSeller] = useState(false);
+  const [addSellerLoading, setAddSellerLoading] = useState(false);
+
+  const [sellerForm, setSellerForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    store_name: "",
+  });
+
+  const [sellerFormError, setSellerFormError] = useState("");
+
+  // =========================================================
+  // LOAD DASHBOARD
   // =========================================================
 
   const loadDashboard = useCallback(async (token) => {
@@ -193,7 +209,6 @@ function Admin() {
         );
       }
 
-      // Ambil data dashboard + seller
       await Promise.all([
         loadDashboard(token),
         loadSellers(token),
@@ -215,8 +230,6 @@ function Admin() {
         return;
       }
 
-      // Kalau session masih punya data lokal,
-      // dashboard tetap boleh tampil.
       await Promise.all([
         loadDashboard(token),
         loadSellers(token),
@@ -241,6 +254,138 @@ function Admin() {
     navigate("/seller/login", {
       replace: true,
     });
+  }
+
+  // =========================================================
+  // ADD SELLER FORM
+  // =========================================================
+
+  function handleSellerFormChange(event) {
+    const { name, value } = event.target;
+
+    setSellerForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
+
+    setSellerFormError("");
+  }
+
+  function openAddSeller() {
+    setSellerForm({
+      name: "",
+      email: "",
+      password: "",
+      store_name: "",
+    });
+
+    setSellerFormError("");
+    setShowAddSeller(true);
+  }
+
+  function closeAddSeller() {
+    if (addSellerLoading) return;
+
+    setShowAddSeller(false);
+    setSellerFormError("");
+  }
+
+  async function handleAddSeller(event) {
+    event.preventDefault();
+
+    const token = localStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      handleLogout();
+      return;
+    }
+
+    const name = sellerForm.name.trim();
+    const email = sellerForm.email.trim().toLowerCase();
+    const password = sellerForm.password;
+    const storeName = sellerForm.store_name.trim();
+
+    if (!name || !email || !password || !storeName) {
+      setSellerFormError(
+        "Semua field wajib diisi."
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      setSellerFormError(
+        "Password minimal 6 karakter."
+      );
+      return;
+    }
+
+    setAddSellerLoading(true);
+    setSellerFormError("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/admin/sellers`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name,
+            email,
+            password,
+            store_name: storeName,
+          }),
+        }
+      );
+
+      if (response.status === 401) {
+        handleLogout();
+        return;
+      }
+
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            "Gagal menambahkan seller."
+        );
+      }
+
+      setShowAddSeller(false);
+
+      setSellerForm({
+        name: "",
+        email: "",
+        password: "",
+        store_name: "",
+      });
+
+      await Promise.all([
+        loadSellers(token),
+        loadDashboard(token),
+      ]);
+    } catch (error) {
+      console.error(
+        "Gagal menambahkan seller:",
+        error
+      );
+
+      setSellerFormError(
+        error.message ||
+          "Gagal menambahkan seller."
+      );
+    } finally {
+      setAddSellerLoading(false);
+    }
   }
 
   // =========================================================
@@ -287,7 +432,6 @@ function Admin() {
         );
       }
 
-      // Update seller langsung di UI
       setSellers((currentSellers) =>
         currentSellers.map((item) =>
           item.id === seller.id
@@ -296,7 +440,6 @@ function Admin() {
         )
       );
 
-      // Refresh statistik
       await loadDashboard(token);
     } catch (error) {
       console.error(
@@ -345,10 +488,6 @@ function Admin() {
     );
   }
 
-  // =========================================================
-  // SAFETY
-  // =========================================================
-
   if (!admin) {
     return null;
   }
@@ -378,7 +517,7 @@ function Admin() {
     stats.total_income || 0;
 
   // =========================================================
-  // ADMIN DASHBOARD
+  // RENDER
   // =========================================================
 
   return (
@@ -391,37 +530,27 @@ function Admin() {
       <header className="admin-dashboard-header">
 
         <div className="admin-dashboard-brand">
-
           <div className="admin-brand-icon">
             🍽️
           </div>
 
           <div>
-            <strong>
-              Canteenly
-            </strong>
-
-            <span>
-              Admin Panel
-            </span>
+            <strong>Canteenly</strong>
+            <span>Admin Panel</span>
           </div>
-
         </div>
 
         <div className="admin-account">
 
           <div className="admin-account-info">
-
             <strong>
-              {admin.name ||
-                "Administrator"}
+              {admin.name || "Administrator"}
             </strong>
 
             <span>
               {admin.email ||
                 "admin@canteenly.com"}
             </span>
-
           </div>
 
           <button
@@ -445,32 +574,26 @@ function Admin() {
         {/* TITLE */}
 
         <div className="admin-dashboard-title">
+  <div>
+    <span className="admin-eyebrow">
+      ADMINISTRATOR
+    </span>
 
-          <div>
+    <h1>
+      Halo, {admin.name || "Admin"} 👋
+    </h1>
 
-            <span className="admin-eyebrow">
-              ADMINISTRATOR
-            </span>
-
-            <h1>
-              Halo,{" "}
-              {admin.name || "Admin"} 👋
-            </h1>
-
-            <p>
-              Kelola sistem Canteenly dari
-              satu dashboard.
-            </p>
-
-          </div>
-
-        </div>
+    <p>
+      Kelola sistem Canteenly dari satu dashboard.
+    </p>
+  </div>
+</div>
 
         {/* ERROR */}
 
         {error && (
           <div className="admin-error-banner">
-            {error}
+            <span>{error}</span>
 
             <button
               type="button"
@@ -487,19 +610,13 @@ function Admin() {
 
         <section className="admin-stats">
 
-          {/* TOTAL SELLER */}
-
           <div className="admin-stat-card">
-
             <div className="admin-stat-icon">
               🏪
             </div>
 
             <div>
-
-              <span>
-                Total Seller
-              </span>
+              <span>Total Seller</span>
 
               <strong>
                 {dashboardLoading
@@ -512,24 +629,16 @@ function Admin() {
                 {inactiveSellers > 0 &&
                   ` • ${inactiveSellers} nonaktif`}
               </small>
-
             </div>
-
           </div>
 
-          {/* TOTAL MENU */}
-
           <div className="admin-stat-card">
-
             <div className="admin-stat-icon">
               🍱
             </div>
 
             <div>
-
-              <span>
-                Total Menu
-              </span>
+              <span>Total Menu</span>
 
               <strong>
                 {dashboardLoading
@@ -540,24 +649,16 @@ function Admin() {
               <small>
                 Menu dalam sistem
               </small>
-
             </div>
-
           </div>
 
-          {/* TOTAL ORDER */}
-
           <div className="admin-stat-card">
-
             <div className="admin-stat-icon">
               🧾
             </div>
 
             <div>
-
-              <span>
-                Total Pesanan
-              </span>
+              <span>Total Pesanan</span>
 
               <strong>
                 {dashboardLoading
@@ -568,24 +669,16 @@ function Admin() {
               <small>
                 Seluruh pesanan
               </small>
-
             </div>
-
           </div>
 
-          {/* INCOME */}
-
           <div className="admin-stat-card">
-
             <div className="admin-stat-icon">
               💰
             </div>
 
             <div>
-
-              <span>
-                Pendapatan
-              </span>
+              <span>Pendapatan</span>
 
               <strong>
                 {dashboardLoading
@@ -598,168 +691,55 @@ function Admin() {
               <small>
                 Pesanan selesai
               </small>
-
             </div>
-
           </div>
 
         </section>
 
         {/* ===================================================
-            CONTENT GRID
+            ADMIN SUMMARY
         ==================================================== */}
 
-        <section className="admin-content-grid">
+        <section className="admin-panel-card admin-summary-panel">
 
-          {/* =================================================
-              SYSTEM CARD
-          ================================================== */}
+          <div className="admin-panel-header">
 
-          <div className="admin-panel-card">
+            <div>
+              <span className="admin-panel-eyebrow">
+                SISTEM
+              </span>
 
-            <div className="admin-panel-header">
-
-              <div>
-
-                <span className="admin-panel-eyebrow">
-                  SISTEM
-                </span>
-
-                <h2>
-                  Canteenly Management
-                </h2>
-
-              </div>
-
-              <div className="admin-online-status">
-                <span />
-                Online
-              </div>
-
+              <h2>
+                Canteenly Management
+              </h2>
             </div>
 
-            <div className="admin-system-list">
-
-              <div className="admin-system-item">
-
-                <div className="admin-system-icon">
-                  🏪
-                </div>
-
-                <div>
-
-                  <strong>
-                    Manajemen Seller
-                  </strong>
-
-                  <span>
-                    {totalSellers} seller
-                    terdaftar
-                  </span>
-
-                </div>
-
-                <span className="admin-arrow">
-                  →
-                </span>
-
-              </div>
-
-              <div className="admin-system-item">
-
-                <div className="admin-system-icon">
-                  🍽️
-                </div>
-
-                <div>
-
-                  <strong>
-                    Manajemen Menu
-                  </strong>
-
-                  <span>
-                    {totalMenus} menu
-                    tersedia
-                  </span>
-
-                </div>
-
-                <span className="admin-arrow">
-                  →
-                </span>
-
-              </div>
-
-              <div className="admin-system-item">
-
-                <div className="admin-system-icon">
-                  📦
-                </div>
-
-                <div>
-
-                  <strong>
-                    Manajemen Pesanan
-                  </strong>
-
-                  <span>
-                    {totalOrders} pesanan
-                    tercatat
-                  </span>
-
-                </div>
-
-                <span className="admin-arrow">
-                  →
-                </span>
-
-              </div>
-
+            <div className="admin-online-status">
+              <span />
+              Online
             </div>
 
           </div>
 
-          {/* =================================================
-              WELCOME CARD
-          ================================================== */}
+          <div className="admin-summary-content">
 
-          <div className="admin-welcome-card">
-
-            <div className="admin-welcome-icon">
+            <div className="admin-summary-icon">
               🛡️
             </div>
 
-            <span className="admin-panel-eyebrow">
-              ADMIN ACCESS
-            </span>
+            <div className="admin-summary-text">
+              <strong>
+                Panel administrator aktif
+              </strong>
 
-            <h2>
-              Sistem siap digunakan.
-            </h2>
+              <span>
+                Gunakan panel ini untuk
+                mengelola akun seller Canteenly.
+              </span>
+            </div>
 
-            <p>
-              Kamu login sebagai administrator
-              Canteenly. Semua pengelolaan sistem
-              akan dilakukan dari panel ini.
-            </p>
-
-            <div className="admin-account-badge">
-
-              <span className="admin-account-badge-dot" />
-
-              <div>
-
-                <strong>
-                  {admin.name ||
-                    "Administrator"}
-                </strong>
-
-                <small>
-                  {admin.email}
-                </small>
-
-              </div>
-
+            <div className="admin-summary-badge">
+              {totalSellers} Seller
             </div>
 
           </div>
@@ -775,7 +755,6 @@ function Admin() {
           <div className="admin-panel-header">
 
             <div>
-
               <span className="admin-panel-eyebrow">
                 SELLER
               </span>
@@ -783,16 +762,27 @@ function Admin() {
               <h2>
                 Daftar Seller
               </h2>
-
             </div>
 
-            <div className="admin-seller-count">
-              {totalSellers} Seller
+            <div className="admin-seller-header-actions">
+
+              <div className="admin-seller-count">
+                {totalSellers} Seller
+              </div>
+
+              <button
+                type="button"
+                className="admin-add-seller-small"
+                onClick={openAddSeller}
+              >
+                ＋ Tambah
+              </button>
+
             </div>
 
           </div>
 
-          {/* SELLER LOADING */}
+          {/* LOADING */}
 
           {sellersLoading ? (
             <div className="admin-sellers-loading">
@@ -823,6 +813,14 @@ function Admin() {
                 terdaftar di sistem.
               </p>
 
+              <button
+                type="button"
+                className="admin-empty-add-button"
+                onClick={openAddSeller}
+              >
+                ＋ Tambah Seller
+              </button>
+
             </div>
 
           ) : (
@@ -842,15 +840,11 @@ function Admin() {
                     key={seller.id}
                   >
 
-                    {/* SELLER AVATAR */}
-
                     <div className="admin-seller-avatar">
 
                       {seller.profile_image ? (
                         <img
-                          src={
-                            seller.profile_image
-                          }
+                          src={seller.profile_image}
                           alt={
                             seller.store_name ||
                             seller.name ||
@@ -858,14 +852,10 @@ function Admin() {
                           }
                         />
                       ) : (
-                        <span>
-                          🏪
-                        </span>
+                        <span>🏪</span>
                       )}
 
                     </div>
-
-                    {/* SELLER INFO */}
 
                     <div className="admin-seller-info">
 
@@ -898,13 +888,10 @@ function Admin() {
                       </span>
 
                       <small>
-                        {seller.email ||
-                          "-"}
+                        {seller.email || "-"}
                       </small>
 
                     </div>
-
-                    {/* ACTION */}
 
                     <button
                       type="button"
@@ -934,6 +921,176 @@ function Admin() {
         </section>
 
       </main>
+
+      {/* =====================================================
+          ADD SELLER MODAL
+      ====================================================== */}
+
+      {showAddSeller && (
+        <div
+          className="admin-modal-overlay"
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !addSellerLoading
+            ) {
+              closeAddSeller();
+            }
+          }}
+        >
+
+          <div className="admin-modal">
+
+            <div className="admin-modal-header">
+
+              <div>
+                <span className="admin-panel-eyebrow">
+                  SELLER
+                </span>
+
+                <h2>
+                  Tambah Seller
+                </h2>
+
+                <p>
+                  Buat akun seller baru untuk
+                  Canteenly.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="admin-modal-close"
+                onClick={closeAddSeller}
+                disabled={addSellerLoading}
+              >
+                ×
+              </button>
+
+            </div>
+
+            <form
+              className="admin-seller-form"
+              onSubmit={handleAddSeller}
+            >
+
+              <div className="admin-form-group">
+
+                <label htmlFor="seller-name">
+                  Nama Seller
+                </label>
+
+                <input
+                  id="seller-name"
+                  name="name"
+                  type="text"
+                  placeholder="Contoh: Budi"
+                  value={sellerForm.name}
+                  onChange={handleSellerFormChange}
+                  disabled={addSellerLoading}
+                  autoComplete="name"
+                />
+
+              </div>
+
+              <div className="admin-form-group">
+
+                <label htmlFor="seller-store-name">
+                  Nama Kantin
+                </label>
+
+                <input
+                  id="seller-store-name"
+                  name="store_name"
+                  type="text"
+                  placeholder="Contoh: Kantin Bu Budi"
+                  value={sellerForm.store_name}
+                  onChange={handleSellerFormChange}
+                  disabled={addSellerLoading}
+                />
+
+              </div>
+
+              <div className="admin-form-group">
+
+                <label htmlFor="seller-email">
+                  Email
+                </label>
+
+                <input
+                  id="seller-email"
+                  name="email"
+                  type="email"
+                  placeholder="seller@example.com"
+                  value={sellerForm.email}
+                  onChange={handleSellerFormChange}
+                  disabled={addSellerLoading}
+                  autoComplete="email"
+                />
+
+              </div>
+
+              <div className="admin-form-group">
+
+                <label htmlFor="seller-password">
+                  Password
+                </label>
+
+                <input
+                  id="seller-password"
+                  name="password"
+                  type="password"
+                  placeholder="Minimal 6 karakter"
+                  value={sellerForm.password}
+                  onChange={handleSellerFormChange}
+                  disabled={addSellerLoading}
+                  autoComplete="new-password"
+                />
+
+              </div>
+
+              {sellerFormError && (
+                <div className="admin-form-error">
+                  {sellerFormError}
+                </div>
+              )}
+
+              <div className="admin-modal-actions">
+
+                <button
+                  type="button"
+                  className="admin-cancel-button"
+                  onClick={closeAddSeller}
+                  disabled={addSellerLoading}
+                >
+                  Batal
+                </button>
+
+                <button
+                  type="submit"
+                  className="admin-submit-button"
+                  disabled={addSellerLoading}
+                >
+                  {addSellerLoading ? (
+                    <>
+                      <span className="admin-button-spinner" />
+                      Menambahkan...
+                    </>
+                  ) : (
+                    <>
+                      ＋ Tambah Seller
+                    </>
+                  )}
+                </button>
+
+              </div>
+
+            </form>
+
+          </div>
+
+        </div>
+      )}
 
     </div>
   );

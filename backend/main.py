@@ -1042,6 +1042,63 @@ def admin_dashboard(
         }
     }
 
+# =========================================================
+# ADMIN - CREATE SELLER
+# =========================================================
+
+@app.post("/api/admin/sellers")
+def admin_create_seller(
+    data: SellerRegister,
+    admin=Depends(get_current_admin),
+):
+    email = data.email.strip().lower()
+
+    # Cek apakah email sudah digunakan
+    existing_seller = sellers_collection.find_one(
+        {"email": email}
+    )
+
+    if existing_seller:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email seller sudah terdaftar",
+        )
+
+    # Hash password sebelum disimpan
+    hashed_password = hash_password(
+        data.password
+    )
+
+    seller = {
+        "name": data.name.strip(),
+        "store_name": data.store_name.strip(),
+        "email": email,
+        "password": hashed_password,
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc),
+    }
+
+    try:
+        result = sellers_collection.insert_one(
+            seller
+        )
+
+    except DuplicateKeyError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email seller sudah terdaftar",
+        )
+
+    return {
+        "message": "Akun seller berhasil dibuat",
+        "seller": {
+            "id": str(result.inserted_id),
+            "name": seller["name"],
+            "store_name": seller["store_name"],
+            "email": seller["email"],
+            "is_active": seller["is_active"],
+        },
+    }
 
 # =========================================================
 # ADMIN SELLER LIST
