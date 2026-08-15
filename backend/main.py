@@ -1933,7 +1933,7 @@ def debug_database_host():
             "error": str(error),
         }
 
-    @app.get("/debug/admin")
+@app.get("/debug/admin")
 def debug_admin():
     admin = admins_collection.find_one(
         {
