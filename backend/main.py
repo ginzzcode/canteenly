@@ -1907,3 +1907,9 @@ def get_public_order_by_id(
     return {
         "order": serialize_order(order),
     }
+
+@app.get("/debug/database")
+def debug_database():
+    return {
+        "database": DATABASE_NAME
+    }
