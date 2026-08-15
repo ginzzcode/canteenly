@@ -1958,3 +1958,37 @@ def debug_admin():
             admin.get("password", "")
         ),
     }
+
+@app.get("/debug/admin-password")
+def debug_admin_password():
+    admin = admins_collection.find_one(
+        {
+            "email": "admin@canteenly.com"
+        }
+    )
+
+    if not admin:
+        return {
+            "found": False
+        }
+
+    password_hash = admin.get("password", "")
+
+    try:
+        verified = pwd_context.verify(
+            "admin123",
+            password_hash,
+        )
+    except Exception as error:
+        return {
+            "found": True,
+            "verified": False,
+            "error": str(error),
+        }
+
+    return {
+        "found": True,
+        "verified": verified,
+        "hash_prefix": password_hash[:7],
+        "hash_length": len(password_hash),
+    }
